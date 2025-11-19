@@ -9,7 +9,7 @@ interface ProfileModalProps {
     onClose: () => void;
     user: SupabaseUser;
     profile: any;
-    onUpdateUser: () => void;
+    onUpdateUser: (payload?: { avatarUrl?: string }) => Promise<void> | void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, user, profile, onUpdateUser }) => {
@@ -81,7 +81,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
             });
 
             setLocalAvatarUrl(publicUrl);
-            onUpdateUser();
+            await onUpdateUser({
+                avatarUrl: publicUrl,
+            });
         } catch (error) {
             console.error('Error uploading avatar:', error);
             alert('Error uploading avatar. Please make sure the "avatars" bucket exists and is public.');

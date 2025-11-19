@@ -20,19 +20,50 @@ export default function App() {
   const [profile, setProfile] = useState<any>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
+  const fetchProfile = async (userId: string, fallbackUser?: User | null) => {
+    const sessionUser = fallbackUser ?? user ?? null;
+    const fallbackAvatar = sessionUser?.user_metadata?.avatar_url ||
+      sessionUser?.user_metadata?.picture ||
+      null;
+    const fallbackName =
+      sessionUser?.user_metadata?.full_name ||
+      sessionUser?.email?.split('@')[0] ||
+      null;
+
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
-    setProfile(data);
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Failed to fetch profile', error);
+    }
+
+    if (!data) {
+      setProfile({
+        id: userId,
+        avatar_url: fallbackAvatar,
+        full_name: fallbackName,
+        updated_at: null,
+      });
+      return null;
+    }
+
+    const normalizedProfile = {
+      ...data,
+      avatar_url: data.avatar_url || fallbackAvatar,
+      full_name: data.full_name || fallbackName,
+    };
+
+    setProfile(normalizedProfile);
+    return normalizedProfile;
   };
 
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
+      if (session?.user) fetchProfile(session.user.id, session.user);
     });
 
     const {
@@ -60,6 +91,26 @@ export default function App() {
     { name: 'Pricing', url: '/#pricing', icon: Zap },
     { name: 'Docs', url: '/docs', icon: FileText }
   ];
+
+  const handleProfileUpdated = async (updates?: { avatarUrl?: string }) => {
+    if (!user) return;
+
+    if (updates?.avatarUrl) {
+      setProfile((prev: any) => ({
+        ...(prev ?? { id: user.id }),
+        avatar_url: updates.avatarUrl,
+        full_name: prev?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || null,
+        updated_at: new Date().toISOString(),
+      }));
+    }
+
+    await fetchProfile(user.id);
+
+    const { data } = await supabase.auth.getUser();
+    if (data?.user) {
+      setUser(data.user);
+    }
+  };
 
   return (
     <Router>
@@ -107,9 +158,7 @@ export default function App() {
             onClose={() => setShowProfileModal(false)}
             user={user}
             profile={profile}
-            onUpdateUser={() => {
-              if (user) fetchProfile(user.id);
-            }}
+        onUpdateUser={handleProfileUpdated}
           />
         )}
 
