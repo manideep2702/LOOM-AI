@@ -27,6 +27,11 @@ export function NavBar({ items, className, onLoginClick, user, profile, onProfil
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState(items[0].name)
   const [isMobile, setIsMobile] = useState(false)
+  const [avatarFailed, setAvatarFailed] = useState(false)
+
+  useEffect(() => {
+    setAvatarFailed(false)
+  }, [user?.id, profile?.avatar_url])
 
   useEffect(() => {
     const handleResize = () => {
@@ -132,11 +137,12 @@ export function NavBar({ items, className, onLoginClick, user, profile, onProfil
             className="relative cursor-pointer p-1 rounded-full transition-all shrink-0 border border-white/10 hover:border-indigo-500/50 group"
           >
             <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-800">
-              {profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture ? (
+              {!avatarFailed && (profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (
                 <img
                   src={profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture}
                   alt="User"
                   className="w-full h-full object-cover"
+                  onError={() => setAvatarFailed(true)}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-zinc-400 text-xs font-bold">
