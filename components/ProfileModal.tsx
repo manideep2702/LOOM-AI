@@ -14,6 +14,7 @@ interface ProfileModalProps {
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, user, profile, onUpdateUser }) => {
     const [isUploading, setIsUploading] = useState(false);
+    const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     if (!isOpen) return null;
@@ -30,7 +31,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
 
         const file = event.target.files[0];
         const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+        const uniqueId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : Math.random().toString(36).slice(2);
+        const fileName = `${user.id}/${uniqueId}.${fileExt}`;
         const filePath = `${fileName}`;
 
         setIsUploading(true);
@@ -39,7 +43,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
             // Upload to Supabase Storage
             const { error: uploadError } = await supabase.storage
                 .from('avatars')
-                .upload(filePath, file);
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: true,
+                    contentType: file.type,
+                });
 
             if (uploadError) {
                 throw uploadError;
@@ -54,7 +62,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
             const updates = {
                 id: user.id,
                 avatar_url: publicUrl,
-                updated_at: new Date(),
+                updated_at: new Date().toISOString(),
             };
 
             const { error: updateError } = await supabase
@@ -65,16 +73,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
                 throw updateError;
             }
 
+            await supabase.auth.updateUser({
+                data: {
+                    avatar_url: publicUrl,
+                    picture: publicUrl,
+                },
+            });
+
+            setLocalAvatarUrl(publicUrl);
             onUpdateUser();
         } catch (error) {
             console.error('Error uploading avatar:', error);
             alert('Error uploading avatar. Please make sure the "avatars" bucket exists and is public.');
         } finally {
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
             setIsUploading(false);
         }
     };
 
-    const avatarUrl = profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture;
+    const avatarUrl = localAvatarUrl || profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture;
     const userName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
 
     return (
