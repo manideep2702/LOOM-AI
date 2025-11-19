@@ -158,7 +158,7 @@ export default function App() {
             onClose={() => setShowProfileModal(false)}
             user={user}
             profile={profile}
-        onUpdateUser={handleProfileUpdated}
+            onUpdateUser={handleProfileUpdated}
           />
         )}
 
