@@ -1,7 +1,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ViralAnalysis, GeneratedContent } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let ai: GoogleGenAI | null = null;
+
+const getGeminiClient = () => {
+  if (ai) {
+    return ai;
+  }
+
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+  if (!apiKey) {
+    const message = "Gemini API key is missing. Set VITE_GEMINI_API_KEY in your environment.";
+    console.error(message);
+    throw new Error(message);
+  }
+
+  ai = new GoogleGenAI({ apiKey });
+  return ai;
+};
 
 const MAX_RETRIES = 3;
 const BACKOFF_BASE_MS = 800;
@@ -72,7 +89,7 @@ export const analyzePost = async (referenceContent: string): Promise<ViralAnalys
   `;
 
   const response = await executeWithRetry(() =>
-    ai.models.generateContent({
+    getGeminiClient().models.generateContent({
       model: "gemini-2.0-flash",
       contents: prompt,
       config: {
@@ -157,7 +174,7 @@ export const generatePost = async (
   `;
 
   const response = await executeWithRetry(() =>
-    ai.models.generateContent({
+    getGeminiClient().models.generateContent({
       model: "gemini-2.0-flash",
       contents: prompt,
       config: {
